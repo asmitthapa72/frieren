@@ -283,7 +283,9 @@ class ModuleLinuxHelper
             'connection.autoconnect', self::isTruthy($disabled) ? 'no' : 'yes',
             '802-11-wireless.hidden', self::isTruthy($hidden) ? 'yes' : 'no',
         ];
-        $arguments = array_merge($arguments, self::securityArguments($encryption, $key));
+        if ($encryption !== 'none') {
+            $arguments = array_merge($arguments, self::securityArguments($encryption, $key));
+        }
         if ($mode === 'sta' && $bssid !== '') {
             $arguments = array_merge($arguments, ['802-11-wireless.bssid', strtoupper($bssid)]);
         }
