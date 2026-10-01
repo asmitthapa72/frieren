@@ -9,7 +9,39 @@ import react from '@vitejs/plugin-react';
 import { compression } from 'vite-plugin-compression2';
 import { analyzer } from 'vite-bundle-analyzer';
 import path from 'path';
-import { readFileSync } from 'fs';
+import { createReadStream, existsSync, readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+
+const configDirectory = path.dirname(fileURLToPath(import.meta.url));
+
+const companionModuleAssets = () => ({
+  name: 'companion-module-assets',
+  configureServer(server) {
+    server.middlewares.use((request, response, next) => {
+      const pathname = new URL(request.url || '/', 'http://localhost').pathname;
+      const match = pathname.match(/^\/modules\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+)$/);
+      if (!match) {
+        next();
+        return;
+      }
+
+      const [, moduleName, assetName] = match;
+      const configuredRoots = process.env.FRIEREN_MODULE_EXTRA_ROOT || path.resolve(configDirectory, '../../frieren-modules');
+      const roots = configuredRoots.split(path.delimiter).filter(Boolean);
+      const assetPath = roots
+          .map((root) => path.resolve(root, moduleName, 'dist', assetName))
+          .find((candidate) => existsSync(candidate));
+
+      if (!assetPath) {
+        next();
+        return;
+      }
+
+      response.setHeader('Content-Type', assetName.endsWith('.js') ? 'application/javascript' : 'application/octet-stream');
+      createReadStream(assetPath).pipe(response);
+    });
+  },
+});
 
 // eslint-disable-next-line no-undef
 const appVersion = JSON.parse(readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8')).version;
@@ -30,15 +62,18 @@ const cacheBuster = () => ({
 export default defineConfig(({ mode }) => {
   const modeMap = { production: 'prod', development: 'dev' };
   const resolvedMode = modeMap[mode] || mode;
-  const env = Object.assign(
-      process.env,
-      loadEnv(resolvedMode, `${process.cwd()}/config`)
-  );
+      const env = Object.assign(
+        {},
+        loadEnv(resolvedMode, `${process.cwd()}/config`),
+        process.env
+      );
+      Object.assign(process.env, env);
 
   const config = {
     plugins: [
       react(),
       cacheBuster(),
+      companionModuleAssets(),
     ],
     resolve: {
       alias: {

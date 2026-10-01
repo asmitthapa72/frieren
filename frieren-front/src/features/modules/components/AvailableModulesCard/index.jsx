@@ -54,7 +54,7 @@ const AvailableModulesCard = ({ availableQuery, installedQuery }) => {
     );
 
     const checkUpdateable = (newModule) => (
-        installedModules.some((module) => module.name === newModule.name && module.version !== newModule.version)
+        installedModules.some((module) => module.name === newModule.name && !module.readOnly && module.version !== newModule.version)
     );
 
     const handleDownloadClick = (value) => {

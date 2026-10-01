@@ -26,6 +26,7 @@ $classMap = [
     'frieren\\helper\\HelperFactory' => __DIR__ . '/helper/HelperFactory.php',
     'frieren\\helper\\HelperInterface' => __DIR__ . '/helper/HelperInterface.php',
     'frieren\\helper\\OpenWrtHelper' => __DIR__ . '/helper/OpenWrtHelper.php',
+    'frieren\\helper\\LinuxHelper' => __DIR__ . '/helper/LinuxHelper.php',
     'frieren\\helper\\UciConfigHelper' => __DIR__ . '/helper/UciConfigHelper.php',
     'frieren\\orm\\SQLite' => __DIR__ . '/orm/SQLite.php',
 ];
@@ -42,12 +43,18 @@ spl_autoload_register(function ($className) use ($classMap) {
 
     // Check if the class uses the namespace prefix
     if (strncmp($prefix, $className, $len) === 0) {
-        $baseDir = __DIR__ . '/../modules/';
-
         $relativeClass = substr($className, $len);
-        $relativeClass = str_replace('\\', '/', $relativeClass);
-
-        require "{$baseDir}{$relativeClass}.php";
+        $relativePath = str_replace('\\', '/', $relativeClass);
+        $moduleDirectory = dirname($relativePath);
+        $classFile = basename($relativePath) . '.php';
+        foreach (DeviceConfig::getModuleRoots() as $baseDir) {
+            foreach (["{$baseDir}/{$relativePath}.php", "{$baseDir}/{$moduleDirectory}/public/{$classFile}"] as $moduleFile) {
+                if (is_file($moduleFile)) {
+                    require $moduleFile;
+                    return;
+                }
+            }
+        }
     }
 });
 

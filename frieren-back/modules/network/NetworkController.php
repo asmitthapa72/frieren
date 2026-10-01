@@ -67,7 +67,15 @@ class NetworkController extends \frieren\core\Controller
      */
     private function isValidInterfaceName($name)
     {
-        return is_string($name) && preg_match(self::INTERFACE_NAME_REGEX, $name) === 1;
+        if (!is_string($name) || $name === '' || strlen($name) > 255 || preg_match('/[\x00-\x1F\x7F]/', $name)) {
+            return false;
+        }
+
+        if (\DeviceConfig::getSystemFamily() === 'Linux') {
+            return true;
+        }
+
+        return preg_match(self::INTERFACE_NAME_REGEX, $name) === 1;
     }
 
     /**

@@ -97,7 +97,7 @@ export const manifestSchema = yup.object().shape({
     documentation: optionalUrlSchema,
     license: yup.string().optional(),
     guestType: yup.array().of(
-        yup.string().oneOf(['OpenWrt', 'RaspberryPi'], 'GuestType must be either OpenWrt or RaspberryPi.')
+        yup.string().oneOf(['OpenWrt', 'RaspberryPi', 'Linux'], 'GuestType must be OpenWrt, RaspberryPi, or Linux.')
     ).default([]),
     dependencies: yup.array().of(yup.string()).default([]),
     minPanelVersion: optionalSemverSchema,

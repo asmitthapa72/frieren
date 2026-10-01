@@ -51,8 +51,12 @@ class PackagesController extends \frieren\core\Controller
             return self::setError('No internet connection available.');
         }
 
-        $script = $this->getScriptPath();
-        \frieren\helper\BackgroundTaskHelper::start(self::TASK_UPDATE, "{$script} update");
+        if (\DeviceConfig::getSystemFamily() === 'Linux') {
+            self::setupModuleHelper()::updateLists();
+        } else {
+            $script = $this->getScriptPath();
+            \frieren\helper\BackgroundTaskHelper::start(self::TASK_UPDATE, "{$script} update");
+        }
 
         return self::setSuccess();
     }
@@ -64,6 +68,10 @@ class PackagesController extends \frieren\core\Controller
 
     public function getInstalledPackages()
     {
+        if (\DeviceConfig::getSystemFamily() === 'Linux') {
+            return self::setSuccess(['packages' => self::setupModuleHelper()::getInstalledPackages()]);
+        }
+
         $script = $this->getScriptPath();
         $outputFile = \frieren\helper\BackgroundTaskHelper::getLogPath(self::TASK_INSTALLED);
         $command = "{$script} list-installed > {$outputFile} 2>&1";
@@ -88,8 +96,12 @@ class PackagesController extends \frieren\core\Controller
 
     public function getAvailablePackages()
     {
-        $script = $this->getScriptPath();
-        \frieren\helper\BackgroundTaskHelper::start(self::TASK_AVAILABLE, "{$script} list-available");
+        if (\DeviceConfig::getSystemFamily() === 'Linux') {
+            self::setupModuleHelper()::updateAvailablePackages();
+        } else {
+            $script = $this->getScriptPath();
+            \frieren\helper\BackgroundTaskHelper::start(self::TASK_AVAILABLE, "{$script} list-available");
+        }
 
         return self::setSuccess();
     }
@@ -116,6 +128,13 @@ class PackagesController extends \frieren\core\Controller
             return self::setError('No internet connection available.');
         }
 
+        if (\DeviceConfig::getSystemFamily() === 'Linux') {
+            if (!self::setupModuleHelper()::installPackage($this->request['packageName'] ?? '')) {
+                return self::setError('Invalid package name');
+            }
+            return self::setSuccess();
+        }
+
         $script = $this->getScriptPath();
         $packageName = escapeshellarg($this->request['packageName'] ?? '');
         \frieren\helper\BackgroundTaskHelper::start(self::TASK_INSTALL, "{$script} install {$packageName}");
@@ -132,6 +151,13 @@ class PackagesController extends \frieren\core\Controller
     {
         if ($this->dependencyInstallInProgress()) {
             return self::setError('A module dependency installation is in progress. Please wait until it finishes.');
+        }
+
+        if (\DeviceConfig::getSystemFamily() === 'Linux') {
+            if (!self::setupModuleHelper()::removePackage($this->request['packageName'] ?? '', !empty($this->request['autoremove']))) {
+                return self::setError('Invalid package name');
+            }
+            return self::setSuccess();
         }
 
         $script = $this->getScriptPath();

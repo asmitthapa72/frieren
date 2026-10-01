@@ -24,9 +24,8 @@ class HelperFactory
         switch ($systemFamily) {
             case 'OpenWrt':
                 return new OpenWrtHelper();
-            // TODO add others helpers
-            //case 'Linux':
-            //    return new LinuxHelper();
+            case 'Linux':
+                return new LinuxHelper();
             default:
                 throw new \Exception("Unsupported system family: {$systemFamily}");
         }

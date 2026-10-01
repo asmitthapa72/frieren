@@ -104,7 +104,7 @@ abstract class Controller
      */
     protected function setupCoreHelper() {
         if ($this->coreHelper === null) {
-            $this->coreHelper = \frieren\helper\HelperFactory::create(\DeviceConfig::GUESS_TYPE);
+            $this->coreHelper = \frieren\helper\HelperFactory::create(\DeviceConfig::getSystemFamily());
         }
 
         return $this->coreHelper;
@@ -118,7 +118,7 @@ abstract class Controller
      */
     protected function setupModuleHelper() {
         if ($this->moduleHelper === null) {
-            $this->moduleHelper = \frieren\helper\HelperFactory::createModuleHelper($this->moduleName, \DeviceConfig::GUESS_TYPE);
+            $this->moduleHelper = \frieren\helper\HelperFactory::createModuleHelper($this->moduleName, \DeviceConfig::getSystemFamily());
         }
 
         return $this->moduleHelper;
@@ -130,7 +130,9 @@ abstract class Controller
      * @return string The path of the module.
      */
     protected function getModulePath() {
-        return \DeviceConfig::MODULE_ROOT_FOLDER . '/' . $this->moduleName;
+        $modulePath = \DeviceConfig::findModulePath($this->moduleName);
+
+        return $modulePath !== false ? $modulePath : \DeviceConfig::getModuleRootFolder() . '/' . $this->moduleName;
     }
 
     /**

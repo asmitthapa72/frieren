@@ -50,18 +50,25 @@ class Router {
      */
     private function loadModule($moduleName)
     {
-        $baseDir = \DeviceConfig::MODULE_ROOT_FOLDER;
         $controllerName = ucfirst($moduleName) . 'Controller';
 
         // $moduleName is already restricted to /^[a-z0-9_]+$/i by routeModule(), which
         // rules out '.'/'/' and therefore any '../' traversal on its own. The realpath()
         // check below is a second, independent layer so a future change to that regex
         // can't silently reopen a traversal path through $moduleFilePath.
-        $moduleFilePath = "{$baseDir}/{$moduleName}/{$controllerName}.php";
-        $moduleRealPath = realpath($moduleFilePath);
-        $baseRealPath = realpath($baseDir);
-        if (!$moduleRealPath || !$baseRealPath || strpos($moduleRealPath, $baseRealPath . DIRECTORY_SEPARATOR) !== 0) {
+        $moduleDirectory = \DeviceConfig::findModulePath($moduleName);
+        $moduleFilePath = $moduleDirectory ? "{$moduleDirectory}/{$controllerName}.php" : '';
+        $moduleRealPath = $moduleFilePath !== '' ? realpath($moduleFilePath) : false;
+        if (!$moduleDirectory || !$moduleRealPath || dirname($moduleRealPath) !== $moduleDirectory) {
             throw new \Exception("Module file for '{$moduleName}' does not exist.");
+        }
+
+        if (\DeviceConfig::getSystemFamily() === 'Linux') {
+            $manifest = json_decode((string) @file_get_contents($moduleDirectory . '/manifest.json'), true);
+            $guestTypes = is_array($manifest) ? ($manifest['guestType'] ?? []) : [];
+            if (is_array($guestTypes) && $guestTypes && !in_array('Linux', $guestTypes, true)) {
+                throw new \Exception("Module '{$moduleName}' does not support Linux.");
+            }
         }
 
         require($moduleFilePath);

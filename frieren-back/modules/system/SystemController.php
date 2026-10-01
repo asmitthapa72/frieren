@@ -58,10 +58,20 @@ class SystemController extends \frieren\core\Controller
 
     public function startDiagnosticsScript()
     {
+        if (\DeviceConfig::getSystemFamily() === 'Linux') {
+            $scriptPath = self::getModulePath() . '/bin/diagnostics-linux.sh';
+            \frieren\helper\BackgroundTaskHelper::start(
+                self::TASK_DIAGNOSTICS,
+                '/bin/sh ' . escapeshellarg($scriptPath)
+            );
+
+            return self::setSuccess();
+        }
+
         $scriptPath = self::getModulePath() . '/bin/diagnostics.sh';
         \frieren\helper\BackgroundTaskHelper::start(self::TASK_DIAGNOSTICS, $scriptPath);
 
-        self::setSuccess();
+        return self::setSuccess();
     }
 
     public function getDiagnosticsStatus()

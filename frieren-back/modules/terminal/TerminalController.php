@@ -8,9 +8,7 @@
 
 namespace frieren\modules\terminal;
 
-use frieren\helper\OpenWrtHelper;
-use frieren\modules\network\ModuleOpenWrtHelper as NetworkHelper;
-use frieren\modules\settings\ModuleOpenWrtHelper as SettingsHelper;
+use frieren\helper\HelperFactory;
 
 class TerminalController extends \frieren\core\Controller
 {
@@ -34,11 +32,26 @@ class TerminalController extends \frieren\core\Controller
 
     private function getTerminalPath()
     {
-        if (OpenWrtHelper::isSDAvailable() && file_exists(self::TTYD_SD_PATH)) {
+        if ($this->setupCoreHelper()::isSDAvailable() && file_exists(self::TTYD_SD_PATH)) {
             return self::TTYD_SD_PATH;
         }
 
+        if (\DeviceConfig::getSystemFamily() === 'Linux') {
+            $path = trim((string) shell_exec('command -v ttyd 2>/dev/null'));
+            return $path !== '' ? $path : self::TTYD_PATH;
+        }
+
         return self::TTYD_PATH;
+    }
+
+    private function getSettingsHelper()
+    {
+        return HelperFactory::createModuleHelper('settings', \DeviceConfig::getSystemFamily());
+    }
+
+    private function getNetworkHelper()
+    {
+        return HelperFactory::createModuleHelper('network', \DeviceConfig::getSystemFamily());
     }
 
     /**
@@ -52,7 +65,7 @@ class TerminalController extends \frieren\core\Controller
      */
     private function getLanDevice()
     {
-        foreach (NetworkHelper::getInterfaces() as $interface) {
+        foreach ($this->getNetworkHelper()::getInterfaces() as $interface) {
             if ($interface['name'] === self::LAN_INTERFACE && !empty($interface['device'])) {
                 return $interface['device'];
             }
@@ -67,7 +80,7 @@ class TerminalController extends \frieren\core\Controller
         // happy path costs a single pgrep instead of two or three.
         for ($attempt = 0; $attempt < self::START_POLL_ATTEMPTS; $attempt++) {
             usleep(self::START_POLL_INTERVAL_US);
-            if (OpenWrtHelper::checkRunning($terminal)) {
+            if ($this->setupCoreHelper()::checkRunning($terminal)) {
                 return true;
             }
         }
@@ -77,25 +90,37 @@ class TerminalController extends \frieren\core\Controller
 
     public function startTerminal()
     {
-        if (!SettingsHelper::isTerminalEnabled()) {
+        if (!$this->getSettingsHelper()::isTerminalEnabled()) {
             return self::setError('Terminal is disabled');
         }
 
         // disable ttyd instance
-        exec("/etc/init.d/ttyd stop");
-        OpenWrtHelper::execBackground("/etc/init.d/ttyd disable");
+        if (\DeviceConfig::getSystemFamily() === 'Linux') {
+            if (!$this->setupCoreHelper()::commandExists('ttyd')) {
+                return self::setError('ttyd is not installed');
+            }
+        } else {
+            exec("/etc/init.d/ttyd stop");
+            $this->setupCoreHelper()::execBackground("/etc/init.d/ttyd disable");
+        }
 
         // terminal implementation
         $terminal = $this->getTerminalPath();
-        $status = OpenWrtHelper::checkRunning($terminal);
+        $status = $this->setupCoreHelper()::checkRunning($terminal);
         if (!$status) {
-            $shell = SettingsHelper::getTerminalAutologin() ? '/bin/ash' : '/bin/login';
+            $shell = $this->getSettingsHelper()::getTerminalAutologin()
+                ? (\DeviceConfig::getSystemFamily() === 'Linux' ? '/bin/bash' : '/bin/ash')
+                : '/bin/login';
             // Launch from /root so the (autologin) shell opens there instead of
             // inheriting the PHP process cwd (/usr/share/frieren/api). The cd is
             // confined to this subshell; the paths are fixed and the bind device
             // comes from netifd, so no user input reaches this command.
-            $command = "sh -c 'cd /root && {$terminal} -p 5001 -i {$this->getLanDevice()} {$shell}'";
-            OpenWrtHelper::execBackground($command);
+            if (\DeviceConfig::getSystemFamily() === 'Linux') {
+                $command = escapeshellarg($terminal) . ' -p 5001 -i 127.0.0.1 ' . escapeshellarg($shell);
+            } else {
+                $command = "sh -c 'cd /root && {$terminal} -p 5001 -i {$this->getLanDevice()} {$shell}'";
+            }
+            $this->setupCoreHelper()::execBackground($command);
             $status = $this->waitForRunning($terminal);
             if (!$status) {
                 $this->logger("Terminal could not be run! command exec: {$command}");
@@ -104,10 +129,10 @@ class TerminalController extends \frieren\core\Controller
 
         $response = ["success" => $status];
         if ($status) {
-            $response['terminalTheme'] = SettingsHelper::getTerminalTheme();
-            $response['fontSize'] = SettingsHelper::getTerminalFontSize();
-            $response['cursorStyle'] = SettingsHelper::getTerminalCursorStyle();
-            $response['cursorBlink'] = SettingsHelper::getTerminalCursorBlink();
+            $response['terminalTheme'] = $this->getSettingsHelper()::getTerminalTheme();
+            $response['fontSize'] = $this->getSettingsHelper()::getTerminalFontSize();
+            $response['cursorStyle'] = $this->getSettingsHelper()::getTerminalCursorStyle();
+            $response['cursorBlink'] = $this->getSettingsHelper()::getTerminalCursorBlink();
         }
 
         self::setSuccess($response);
@@ -115,12 +140,16 @@ class TerminalController extends \frieren\core\Controller
 
     public function stopTerminal()
     {
-        if (!SettingsHelper::isTerminalEnabled()) {
+        if (!$this->getSettingsHelper()::isTerminalEnabled()) {
             return self::setError('Terminal is disabled');
         }
 
-        OpenWrtHelper::exec("/usr/bin/killall ttyd");
-        $status = OpenWrtHelper::checkRunning($this->getTerminalPath());
+        if (\DeviceConfig::getSystemFamily() === 'Linux') {
+            $this->setupCoreHelper()::exec("pkill -x ttyd");
+        } else {
+            $this->setupCoreHelper()::exec("/usr/bin/killall ttyd");
+        }
+        $status = $this->setupCoreHelper()::checkRunning($this->getTerminalPath());
         if ($status) {
             $this->logger("Terminal could not be stop! command exec: /usr/bin/killall ttyd");
         }
@@ -130,10 +159,10 @@ class TerminalController extends \frieren\core\Controller
 
     public function getStatus()
     {
-        if (!SettingsHelper::isTerminalEnabled()) {
+        if (!$this->getSettingsHelper()::isTerminalEnabled()) {
             return self::setSuccess(["status" => false]);
         }
 
-        self::setSuccess(["status" => OpenWrtHelper::checkRunning($this->getTerminalPath())]);
+        self::setSuccess(["status" => $this->setupCoreHelper()::checkRunning($this->getTerminalPath())]);
     }
 }

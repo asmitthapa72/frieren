@@ -15,5 +15,9 @@ class ApiIndexTest extends TestCase
             "'frieren\\\\helper\\\\HelperInterface' => __DIR__ . '/helper/HelperInterface.php'",
             $source
         );
+        $this->assertStringContainsString(
+            "'frieren\\\\helper\\\\LinuxHelper' => __DIR__ . '/helper/LinuxHelper.php'",
+            $source
+        );
     }
 }

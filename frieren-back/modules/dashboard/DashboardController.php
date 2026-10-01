@@ -58,6 +58,10 @@ class DashboardController extends \frieren\core\Controller
 
     public function startSystemUpdate()
     {
+        if (\DeviceConfig::getSystemFamily() === 'Linux') {
+            return self::setError('The OpenWrt firmware updater is not available on Linux.');
+        }
+
         if (!self::setupCoreHelper()::hasInternetConnection()) {
             return self::setError('No internet connection available.');
         }

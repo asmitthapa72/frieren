@@ -25,8 +25,12 @@ class LoginController extends \frieren\core\Controller
                 // Best-effort: sync the device clock/timezone to the browser's on
                 // login (these gadgets have no RTC). Runs only after auth succeeds
                 // and never affects the login result.
-                if (isset($this->request['datetime'], $this->request['timezone'])) {
-                    \frieren\modules\settings\ModuleOpenWrtHelper::applyBrowserDatetime(
+                if (\DeviceConfig::getSystemFamily() !== 'Linux'
+                    && isset($this->request['datetime'], $this->request['timezone'])) {
+                    \frieren\helper\HelperFactory::createModuleHelper(
+                        'settings',
+                        \DeviceConfig::getSystemFamily()
+                    )::applyBrowserDatetime(
                         $this->request['datetime'],
                         $this->request['timezone']
                     );

@@ -55,6 +55,10 @@ class OpenWrtHelper implements HelperInterface
      */
     public static function execBackground($command, $redirect = '/dev/null 2>&1')
     {
+        if (class_exists('DeviceConfig', false) && \DeviceConfig::getSystemFamily() === 'Linux') {
+            return LinuxHelper::execBackground($command, $redirect);
+        }
+
         // the use of escapeshellarg() can break the command in this context
         exec("/usr/bin/nohup {$command} > {$redirect} &");
         //exec("{$command} > /dev/null 2>&1 &");
@@ -98,6 +102,10 @@ class OpenWrtHelper implements HelperInterface
      */
     public static function checkDependency($dependencies)
     {
+        if (class_exists('DeviceConfig', false) && \DeviceConfig::getSystemFamily() === 'Linux') {
+            return LinuxHelper::checkDependency($dependencies);
+        }
+
         // Installed packages come straight from the opkg status DB via one grep,
         // instead of `opkg list-installed` which formats the whole package database.
         $statusLines = self::exec("/bin/grep -F 'Package: ' /usr/lib/opkg/status", false, true);
@@ -131,8 +139,12 @@ class OpenWrtHelper implements HelperInterface
      * @return bool
      */
     public static function installDependency($dependencies, $installToSD = false, $taskName = 'module-dependencies') {
+        if (class_exists('DeviceConfig', false) && \DeviceConfig::getSystemFamily() === 'Linux') {
+            return LinuxHelper::installDependency($dependencies, $installToSD, $taskName);
+        }
+
         if (!empty($dependencies)) {
-            $scriptPath = \DeviceConfig::MODULE_ROOT_FOLDER . '/packages/bin/dependency-installer.sh';
+            $scriptPath = \DeviceConfig::getModuleRootFolder() . '/packages/bin/dependency-installer.sh';
             $dest = $installToSD ? '--dest sd ' : '';
             $escapedDeps = implode(' ', array_map('escapeshellarg', explode(' ', $dependencies)));
             $command = sprintf('%s %s%s', $scriptPath, $dest, $escapedDeps);
@@ -276,6 +288,10 @@ class OpenWrtHelper implements HelperInterface
      */
     public static function downloadFile($url, $savePath, $flagPath)
     {
+        if (class_exists('DeviceConfig', false) && \DeviceConfig::getSystemFamily() === 'Linux') {
+            return LinuxHelper::downloadFile($url, $savePath, $flagPath);
+        }
+
         $url = escapeshellarg($url);
         $savePath = escapeshellarg($savePath);
         $flagPath = escapeshellarg($flagPath);
@@ -289,6 +305,10 @@ class OpenWrtHelper implements HelperInterface
      */
     public static function isSDAvailable()
     {
+        if (class_exists('DeviceConfig', false) && \DeviceConfig::getSystemFamily() === 'Linux') {
+            return false;
+        }
+
         return strpos(file_get_contents('/proc/mounts'), ' /sd ') !== false;
     }
 
@@ -305,6 +325,10 @@ class OpenWrtHelper implements HelperInterface
             // default_socket_timeout (60s). 15s matches the PHP config ceiling.
             $context = stream_context_create(['http' => ['timeout' => 15]]);
             return file_get_contents($url, false, $context);
+        }
+
+        if (class_exists('DeviceConfig', false) && \DeviceConfig::getSystemFamily() === 'Linux') {
+            return false;
         }
 
         $url = escapeshellarg($url);

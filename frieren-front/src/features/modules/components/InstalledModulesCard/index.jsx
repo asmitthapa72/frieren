@@ -80,7 +80,7 @@ const InstalledModulesCard = ({ installedQuery }) => {
                     </thead>
                     <tbody>
                     {pageData.map((module) => {
-                        const { name, title, icon, description, author, version, size, repository, documentation, sidebar, forceSidebar, system } = module;
+                        const { name, title, icon, description, author, version, size, repository, documentation, sidebar, forceSidebar, system, readOnly } = module;
                         return (
                             <tr key={name}>
                                 <td>
@@ -131,7 +131,7 @@ const InstalledModulesCard = ({ installedQuery }) => {
                                             onClick={() => handlePinClick(module)}
                                         />
                                     )}
-                                    {!system && (
+                                    {!system && !readOnly && (
                                         <Button
                                             title={'Remove'}
                                             icon={'trash-2'}

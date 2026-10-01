@@ -30,7 +30,7 @@ class ModulesController extends \frieren\core\Controller
 
     public function getModuleList()
     {
-        $moduleFolders = self::setupModuleHelper()::getModuleFolders(\DeviceConfig::MODULE_ROOT_FOLDER);
+        $moduleFolders = self::setupModuleHelper()::getModuleFolders($this->getDiscoveryRoots());
         if ($moduleFolders === false) {
             return self::setError('Unable to access modules directory');
         }
@@ -49,6 +49,9 @@ class ModulesController extends \frieren\core\Controller
             }
 
             $info = json_decode(file_get_contents($moduleManifest), true);
+            if (!is_array($info) || !$this->isModuleSupportedOnLinux($info)) {
+                continue;
+            }
             $this->categorizeModule($info, $sidebarSettings, $modules);
         }
 
@@ -125,6 +128,28 @@ class ModulesController extends \frieren\core\Controller
         $url = sprintf(\DeviceConfig::MODULE_JSON_PATH, \DeviceConfig::MODULE_SERVER_URL);
         $moduleData = self::setupCoreHelper()::fileGetContentsSSL($url);
         if ($moduleData !== false) {
+            if (\DeviceConfig::getSystemFamily() === 'Linux') {
+                $catalog = json_decode($moduleData, true);
+                if (!is_array($catalog)) {
+                    return self::setError('Invalid module catalog response.');
+                }
+
+                $catalog = array_values(array_filter($catalog, function ($module) {
+                    if (!is_array($module) || empty($module['name'])) {
+                        return false;
+                    }
+                    $manifestPath = \DeviceConfig::findModulePath($module['name']);
+                    if ($manifestPath === false) {
+                        return false;
+                    }
+                    $manifest = json_decode((string) @file_get_contents($manifestPath . '/manifest.json'), true);
+
+                    return is_array($manifest) && $this->isModuleSupportedOnLinux($manifest);
+                }));
+
+                return self::setSuccess($catalog);
+            }
+
             return self::setSuccess(json_decode($moduleData));
         }
 
@@ -133,13 +158,14 @@ class ModulesController extends \frieren\core\Controller
 
     public function getInstalledModules()
     {
-        $moduleRoot = \DeviceConfig::MODULE_ROOT_FOLDER;
-        $moduleFolders = self::setupModuleHelper()::getModuleFolders($moduleRoot);
+        $moduleRoot = \DeviceConfig::getModuleRootFolder();
+        $discoveryRoots = $this->getDiscoveryRoots();
+        $moduleFolders = self::setupModuleHelper()::getModuleFolders($discoveryRoots);
         if ($moduleFolders === false) {
             return self::setError('Unable to access modules directory');
         }
 
-        $moduleSizes = self::setupModuleHelper()::getAllModuleSizes($moduleRoot);
+        $moduleSizes = self::setupModuleHelper()::getAllModuleSizes($discoveryRoots);
         $modules = [];
         $sidebarSettings = self::setupCoreHelper()::uciGetJson(self::UCI_SIDEBAR, false);
 
@@ -151,6 +177,9 @@ class ModulesController extends \frieren\core\Controller
 
             $info = json_decode(file_get_contents($moduleManifest), true);
             if (json_last_error() !== JSON_ERROR_NONE) {
+                continue;
+            }
+            if (!is_array($info) || !$this->isModuleSupportedOnLinux($info)) {
                 continue;
             }
 
@@ -172,7 +201,8 @@ class ModulesController extends \frieren\core\Controller
                 'repository' => $info['repository'],
                 'documentation' => $info['documentation'] ?? '',
                 'system' => $info['system'],
-                'size' => $moduleSizes[basename($moduleFolder)] ?? '0K',
+                'size' => $moduleSizes[$info['name']] ?? '0K',
+                'readOnly' => $this->isReadOnlySourceModule($moduleFolder),
             ];
         }
 
@@ -182,6 +212,41 @@ class ModulesController extends \frieren\core\Controller
     private function getModuleCompressName($name)
     {
         return "{$name}.tar.gz";
+    }
+
+    private function getDiscoveryRoots()
+    {
+        return \DeviceConfig::getSystemFamily() === 'Linux'
+            ? \DeviceConfig::getModuleRoots()
+            : \DeviceConfig::getModuleRootFolder();
+    }
+
+    private function isModuleSupportedOnLinux($manifest)
+    {
+        if (\DeviceConfig::getSystemFamily() !== 'Linux') {
+            return true;
+        }
+
+        $guestTypes = $manifest['guestType'] ?? [];
+
+        return !$guestTypes || in_array('Linux', $guestTypes, true);
+    }
+
+    private function isReadOnlySourceModule($moduleFolder)
+    {
+        if (\DeviceConfig::getSystemFamily() !== 'Linux') {
+            return false;
+        }
+
+        $modulePath = realpath($moduleFolder);
+        foreach (array_slice(\DeviceConfig::getModuleRoots(), 1) as $sourceRoot) {
+            $rootPath = realpath($sourceRoot);
+            if ($modulePath && $rootPath && strpos($modulePath, $rootPath . DIRECTORY_SEPARATOR) === 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function downloadModule()
@@ -225,11 +290,15 @@ class ModulesController extends \frieren\core\Controller
             return self::setError('Checksum mismatch');
         }
 
+        $useSD = $this->request['destination'] === 'sd';
+        if ($useSD && !self::setupCoreHelper()::isSDAvailable()) {
+            return self::setError('SD module storage is not available on this host');
+        }
+
         $this->removeModuleFiles($moduleName);
 
-        $useSD = $this->request['destination'] === 'sd';
-        $moduleDirPath = \DeviceConfig::MODULE_ROOT_FOLDER;
-        $moduleSDDirPath = \DeviceConfig::MODULE_SD_ROOT_FOLDER;
+        $moduleDirPath = \DeviceConfig::getModuleRootFolder();
+        $moduleSDDirPath = \DeviceConfig::getModuleSdRootFolder();
         $safeModuleName = escapeshellarg($moduleName);
         if ($useSD) {
             @mkdir($moduleSDDirPath, 0777, true);
@@ -257,8 +326,8 @@ class ModulesController extends \frieren\core\Controller
     {
         $moduleName = $this->request['moduleName'] ?? '';
         $moduleSize = $this->request['moduleSize'];
-        $moduleDirPath = \DeviceConfig::MODULE_ROOT_FOLDER;
-        $moduleSDDirPath = \DeviceConfig::MODULE_SD_ROOT_FOLDER;
+        $moduleDirPath = \DeviceConfig::getModuleRootFolder();
+        $moduleSDDirPath = \DeviceConfig::getModuleSdRootFolder();
 
         $alreadyInstalled = is_dir("{$moduleDirPath}/{$moduleName}") || is_dir("{$moduleSDDirPath}/{$moduleName}");
         $validSpace = disk_free_space('/') > ($moduleSize + self::MIN_DISK_SPACE);
@@ -296,10 +365,22 @@ class ModulesController extends \frieren\core\Controller
     {
         $this->validateModuleName($moduleName);
 
-        $moduleDirPath = \DeviceConfig::MODULE_ROOT_FOLDER;
-        $moduleSDDirPath = \DeviceConfig::MODULE_SD_ROOT_FOLDER;
+        $moduleDirPath = \DeviceConfig::getModuleRootFolder();
+        $moduleSDDirPath = \DeviceConfig::getModuleSdRootFolder();
         $modulePath = "{$moduleDirPath}/{$moduleName}";
         $modulePathSD = "{$moduleSDDirPath}/{$moduleName}";
+
+        if (!file_exists($modulePath) && !is_link($modulePath) && !file_exists($modulePathSD)) {
+            $sourcePath = \DeviceConfig::findModulePath($moduleName);
+            if ($sourcePath !== false) {
+                foreach (array_slice(\DeviceConfig::getModuleRoots(), 1) as $sourceRoot) {
+                    $realRoot = realpath($sourceRoot);
+                    if ($realRoot && strpos($sourcePath, $realRoot . DIRECTORY_SEPARATOR) === 0) {
+                        throw new \Exception('This module is provided by a read-only source root and cannot be removed from the panel.');
+                    }
+                }
+            }
+        }
 
         if (is_link($modulePath)) {
             @unlink($modulePath);

@@ -68,6 +68,7 @@ const promptUser = async () => {
         choices: [
             { name: 'OpenWrt', value: 'OpenWrt' },
             { name: 'RaspberryPi', value: 'RaspberryPi' },
+            { name: 'Linux', value: 'Linux' },
         ],
     });
     const dependenciesString = await input({ message: 'Extra dependencies (comma separated):' });

@@ -190,8 +190,8 @@ manifest — `yarn wizard` prompts for `forceSidebar` but always writes `version
 | `repository` | yes | Source URL. |
 | `documentation` | no | Docs URL; shown as a button in the panel when present. |
 | `license` | no | SPDX id, e.g. `LGPL-3.0-or-later`. |
-| `guestType` | no | Subset of `['OpenWrt', 'RaspberryPi']`, default `[]`. |
-| `dependencies` | no | opkg/apk package names — drives the install handshake (§5.8). `[]` = no system deps. |
+| `guestType` | no | Subset of `['OpenWrt', 'RaspberryPi', 'Linux']`, default `[]`. |
+| `dependencies` | no | Package names installed by the target OS manager (`opkg`/`apk` or apt) — drives the install handshake (§5.8). `[]` = no system deps. |
 | `minPanelVersion` | no | Semver; panel blocks install + shows a notice if its own version is older. |
 | `system` | yes | **Always `false`** for a third-party module. |
 | `forceSidebar` | yes | Whether the module shows in the sidebar by default (vs. only reachable once pinned). `yarn wizard` prompts for it directly — answering yes makes `icon` required, per the row above. |

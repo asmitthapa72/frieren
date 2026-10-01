@@ -4,14 +4,14 @@
 
 ## Description
 
-Frieren is a framework for running security tools on OpenWrt routers and Single Board Computers (SBCs). It provides a web panel with WiFi management, installable modules, an integrated terminal, and a package manager. The stack is a PHP backend API with a React frontend, designed to be lightweight enough for embedded devices while remaining extensible through third-party modules.
+Frieren is a framework for running security tools on OpenWrt routers, Single Board Computers (SBCs), and Linux hosts. It provides a web panel with WiFi management, installable modules, an integrated terminal, and a package manager. The stack is a PHP backend API with a React frontend, designed to be lightweight enough for embedded devices while remaining extensible through third-party modules.
 
 ## Features
 
 - **WiFi Management** — Create, edit, and remove wireless interfaces. Scan for networks, configure radios, edit raw UCI config.
 - **Network** — Manage network interfaces, view DHCP leases, and run connectivity diagnostics.
 - **Module System** — Install, remove, and pin third-party modules from a remote repository. Modules load dynamically as UMD bundles.
-- **Package Manager** — Install and remove opkg packages directly from the web panel.
+- **Package Manager** — Install and remove system packages directly from the web panel.
 - **Integrated Terminal** — Web-based terminal (ttyd) accessible from the panel.
 - **System Tools** — Dashboard with system stats, USB device listing, filesystem usage, syslog viewer, diagnostics, and init.d service control.
 - **Settings** — Configure hostname, timezone, user password, and panel theme.
@@ -33,7 +33,7 @@ Frieren is a framework for running security tools on OpenWrt routers and Single 
 
 ## Installation
 
-Frieren runs on OpenWrt (official builds, not forks). It can be installed via an automated script or compiled manually.
+Frieren's original target is OpenWrt (official builds, not forks). An experimental Kali/Debian Linux host backend is also available; see [Linux host setup](LINUX.md) for its requirements and feature differences.
 
 ### Quick Installation
 
